@@ -1,9 +1,5 @@
 import express, { Express, Request, Response } from 'express';
 import cors from 'cors';
-import { SRIConsultasService } from './services/sriConsultasService';
-import { BatchProcessor } from './utils/batchProcessor';
-import { AMBIENTE_DEFAULT, MAX_CLAVES_POR_SOLICITUD } from './config/environment';
-import { Ambiente } from './types/sri.types';
 
 const validarClaveAcceso = (clave: string): boolean => {
   const patron = /^\d{49}$/;
@@ -27,7 +23,7 @@ export const crearVercelServer = (): Express => {
   app.get('/api/consulta/:claveAcceso', async (req: Request, res: Response) => {
     try {
       const { claveAcceso } = req.params;
-      const ambiente: Ambiente = (req.query.ambiente as Ambiente) || AMBIENTE_DEFAULT;
+      const ambiente = (req.query.ambiente as string) || 'produccion';
 
       if (!validarClaveAcceso(claveAcceso)) {
         res.status(400).json({
@@ -36,8 +32,9 @@ export const crearVercelServer = (): Express => {
         return;
       }
 
+      const { SRIConsultasService } = require('./services/sriConsultasService');
       const sriService = new SRIConsultasService();
-      const resultado = await sriService.consultarComprobante(claveAcceso, ambiente);
+      const resultado = await sriService.consultarComprobante(claveAcceso, ambiente as any);
 
       res.json(resultado);
 
@@ -45,7 +42,8 @@ export const crearVercelServer = (): Express => {
       console.error('Error en consulta individual:', error);
       res.status(500).json({
         error: 'Error interno del servidor',
-        mensaje: (error as Error).message
+        mensaje: (error as Error).message,
+        stack: process.env.NODE_ENV === 'development' ? (error as Error).stack : undefined
       });
     }
   });
@@ -70,9 +68,11 @@ export const crearVercelServer = (): Express => {
         return;
       }
 
-      if (clavesAcceso.length > MAX_CLAVES_POR_SOLICITUD) {
+      const MAX_CLAVES = 100;
+      if (clavesAcceso.length > MAX_CLAVES) {
         res.status(400).json({
-          error: `Máximo ${MAX_CLAVES_POR_SOLICITUD} claves por solicitud`
+          error: `Máximo ${MAX_CLAVES} claves por solicitud en Vercel`,
+          recibido: clavesAcceso.length
         });
         return;
       }
@@ -87,11 +87,12 @@ export const crearVercelServer = (): Express => {
         return;
       }
 
-      const ambienteFinal = ambiente || AMBIENTE_DEFAULT;
-      const processor = new BatchProcessor(ambienteFinal);
+      const { BatchProcessor } = require('./utils/batchProcessor');
+      const ambienteFinal = ambiente || 'produccion';
+      const processor = new BatchProcessor(ambienteFinal as any);
 
       const resultados = await processor.procesarMasivo(clavesAcceso);
-      const errores = resultados.filter(r => r.error).length;
+      const errores = resultados.filter((r: any) => r.error).length;
 
       res.json({
         total: clavesAcceso.length,
@@ -105,7 +106,8 @@ export const crearVercelServer = (): Express => {
       console.error('Error en consulta masiva:', error);
       res.status(500).json({
         error: 'Error interno del servidor',
-        mensaje: (error as Error).message
+        mensaje: (error as Error).message,
+        stack: process.env.NODE_ENV === 'development' ? (error as Error).stack : undefined
       });
     }
   });
@@ -120,6 +122,14 @@ export const crearVercelServer = (): Express => {
         consultaIndividual: 'GET /api/consulta/:claveAcceso',
         consultaMasiva: 'POST /api/consulta-masiva'
       }
+    });
+  });
+
+  app.use((err: Error, _req: Request, res: Response, _next: any) => {
+    console.error('Error no manejado:', err);
+    res.status(500).json({
+      error: 'Error interno del servidor',
+      mensaje: err.message
     });
   });
 
