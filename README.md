@@ -151,7 +151,27 @@ curl -X POST http://localhost:3000/api/consulta-masiva \
 
 ## Despliegue
 
-### Render (Recomendado)
+### Vercel (Recomendado)
+
+1. Crear cuenta en [Vercel](https://vercel.com)
+2. Importar proyecto desde GitHub:
+   - Click "Add New..." → "Project"
+   - Selecciona el repositorio `sri-consulta-masiva`
+   - Vercel detectará Node.js automáticamente
+
+3. Configuración:
+   - Framework Preset: **Other**
+   - Root Directory: `./` (o dejar por defecto)
+   - Build Command: `npm install && npm run build`
+   - Output Directory: `dist`
+
+4. Deploy:
+   - Click "Deploy"
+   - Espera ~1-2 minutos
+
+**URL resultante:** `https://sri-consulta-masiva.vercel.app`
+
+### Render
 
 1. Crear cuenta en [Render](https://render.com)
 2. Nuevo Web Service → Conectar GitHub
